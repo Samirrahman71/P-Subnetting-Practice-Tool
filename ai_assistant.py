@@ -21,14 +21,39 @@ from typing import Dict, List, Any, Optional
 import ipaddress
 from subnet_calculator import SubnetCalculator  # Import from existing module
 
-# Import OpenAI library
+# Import OpenAI library with version flexibility
 try:
+    # Try new OpenAI package structure first
     from openai import OpenAI
+    OPENAI_INSTALLED = True
 except ImportError:
-    print("OpenAI library not found. Installing...")
-    import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "openai"])
-    from openai import OpenAI
+    try:
+        # Try legacy OpenAI package
+        import openai
+        OPENAI_INSTALLED = True
+        # Create compatibility wrapper
+        class OpenAI:
+            def __init__(self):
+                self.api_key = None
+                # Map new API structure to old
+                self.chat = type('ChatObject', (), {'completions': openai})()
+    except ImportError:
+        print("OpenAI library not found. Installing...")
+        import subprocess
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "openai"])
+        # Try the import again after installation
+        try:
+            from openai import OpenAI
+            OPENAI_INSTALLED = True
+        except ImportError:
+            import openai
+            OPENAI_INSTALLED = True
+            # Create compatibility wrapper for older versions
+            class OpenAI:
+                def __init__(self):
+                    self.api_key = None
+                    # Map new API structure to old
+                    self.chat = type('ChatObject', (), {'completions': openai})()
 
 class SubnetAI:
     """
@@ -76,7 +101,10 @@ class SubnetAI:
         if not api_key:
             raise ValueError("OpenAI API key not found in configuration file")
             
-        return OpenAI(api_key=api_key)
+        # Create client with just the API key to ensure compatibility with all versions
+        client = OpenAI()
+        client.api_key = api_key
+        return client
     
     def explain_subnetting_concept(self, concept: str) -> str:
         """
@@ -211,17 +239,31 @@ class SubnetAI:
             Exception: If there's an error with the API request
         """
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4-turbo-preview",  # Using advanced model for technical accuracy
-                messages=[
-                    {"role": "system", "content": "You are an expert networking assistant specializing in IP addressing, subnetting, and network design. Provide technically accurate, clear, and educational responses."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,  # Low temperature for more deterministic, factual responses
-                max_tokens=1000
-            )
+            # Use a more widely available model
+            model = "gpt-3.5-turbo"
             
-            return response.choices[0].message.content.strip()
+            # Handle different API versions
+            try:
+                # Try new API format first
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are an expert networking assistant specializing in IP addressing, subnetting, and network design. Provide technically accurate, clear, and educational responses."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.1,  # Low temperature for more deterministic, factual responses
+                    max_tokens=1000
+                )
+                return response.choices[0].message.content.strip()
+            except AttributeError:
+                # Fall back to older API format
+                response = self.client.completions.create(
+                    model=model,
+                    prompt=f"You are an expert networking assistant specializing in IP addressing, subnetting, and network design.\n\nUser: {prompt}\n\nAssistant:",
+                    temperature=0.1,
+                    max_tokens=1000
+                )
+                return response.choices[0].text.strip()
             
         except Exception as e:
             return f"Error getting AI response: {str(e)}"
