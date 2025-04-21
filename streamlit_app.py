@@ -1,52 +1,40 @@
 import streamlit as st
 import ipaddress
 from subnet_calculator import SubnetCalculator
-from typing import Dict, List, Tuple, Optional
-import json
-import os
-import sys
-import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import matplotlib as mpl
 import io
-import base64
 from PIL import Image
+import pandas as pd
 import time
 
-# Set page configuration
+# Must be at the very top - first Streamlit command
 st.set_page_config(
-    page_title="IP Subnet Calculator Pro",
+    page_title="IP Subnet Calculator",
     page_icon="🌐",
     layout="wide",
-    initial_sidebar_state="expanded"
 )
 
-# Helper functions for network visualizations
+# Helper functions for visualizations
 def create_subnet_visualization(network_str, subnets=None):
-    """
-    Create a visual representation of a network and its subnets
-    """
+    """Create a visual representation of a network and its subnets"""
     try:
         # Parse the network
         network = ipaddress.IPv4Network(network_str)
-        prefix_len = network.prefixlen
         
         # Create figure and axis
-        fig, ax = plt.subplots(figsize=(10, 5))
-        fig.patch.set_facecolor('#F0F2F6')
-        ax.set_facecolor('#F0F2F6')
-        
-        # Calculate network size for visualization
-        total_addresses = network.num_addresses
+        fig, ax = plt.subplots(figsize=(10, 4))
+        fig.patch.set_facecolor('#f8fafd')
+        ax.set_facecolor('#f8fafd')
         
         # Draw main network box
-        main_rect = patches.Rectangle((0, 0), 1, 1, linewidth=2, edgecolor='#1E88E5', facecolor='#bbdefb', alpha=0.7)
+        main_rect = patches.Rectangle((0, 0), 1, 1, linewidth=2, 
+                                    edgecolor='#2E7EAF', facecolor='#d0e8f7', alpha=0.7)
         ax.add_patch(main_rect)
         
         # Add network information
-        ax.text(0.5, 0.5, f"{network}\n{total_addresses} addresses", 
+        total_addresses = network.num_addresses
+        ax.text(0.5, 0.5, f"{network}\n{total_addresses:,} addresses", 
                 horizontalalignment='center', verticalalignment='center',
                 fontsize=12, fontweight='bold')
         
@@ -58,8 +46,8 @@ def create_subnet_visualization(network_str, subnets=None):
             for i, subnet in enumerate(subnets):
                 subnet_obj = ipaddress.IPv4Network(subnet['network_address'])
                 subnet_rect = patches.Rectangle((i * width, 0), width, 1, 
-                                               linewidth=1, edgecolor='#FFA000',
-                                               facecolor='#FFECB3', alpha=0.8)
+                                            linewidth=1, edgecolor='#0288D1',
+                                            facecolor='#E1F5FE', alpha=0.8)
                 ax.add_patch(subnet_rect)
                 
                 # Add subnet information
@@ -76,7 +64,7 @@ def create_subnet_visualization(network_str, subnets=None):
             
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.set_title(f"Network Visualization: {network}", fontsize=14, fontweight='bold')
+        ax.set_title(f"Network: {network}", fontsize=14)
         
         # Convert plot to image
         buf = io.BytesIO()
@@ -91,15 +79,13 @@ def create_subnet_visualization(network_str, subnets=None):
         return None
 
 def get_binary_representation(ip_addr, netmask=None):
-    """
-    Get binary representation of an IP address and optionally its netmask
-    """
+    """Get binary representation of an IP address and optionally its netmask"""
     try:
         # Convert IP address to binary
         if isinstance(ip_addr, str):
             ip_addr = ipaddress.IPv4Address(ip_addr)
         
-        # Get binary string, remove '0b' prefix and pad to 32 bits
+        # Get binary string, pad to 32 bits
         binary_str = bin(int(ip_addr))[2:].zfill(32)
         
         # Insert dots for readability
@@ -114,18 +100,14 @@ def get_binary_representation(ip_addr, netmask=None):
             
             # Create visual representation with network and host portions
             prefix_len = bin(int(netmask)).count('1')
-            network_part = formatted_binary[:prefix_len].replace('.', '')
-            host_part = formatted_binary[prefix_len:].replace('.', '')
-            
-            # Reinsert dots
-            network_with_dots = '.'.join([network_part[i:i+8] for i in range(0, len(network_part), 8) if i < len(network_part)])
-            host_with_dots = '.'.join([host_part[i:i+8] for i in range(0, len(host_part), 8) if i < len(host_part)])
+            network_part = binary_str[:prefix_len]
+            host_part = binary_str[prefix_len:]
             
             return {
                 'ip_binary': formatted_binary,
                 'netmask_binary': netmask_formatted,
-                'network_part': network_with_dots,
-                'host_part': host_with_dots,
+                'network_part': network_part,
+                'host_part': host_part,
                 'prefix_len': prefix_len
             }
         
@@ -135,712 +117,569 @@ def get_binary_representation(ip_addr, netmask=None):
         return {'error': str(e)}
 
 def create_binary_visualization(ip_data):
-    """
-    Create a visual representation of binary IP address and its network/host portions
-    """
+    """Create a visual representation of binary IP address"""
     if 'error' in ip_data:
         return None
     
     html = f"""
-    <div style="font-family: monospace; background-color: #2b2b2b; padding: 15px; border-radius: 5px; color: #ffffff;">
-        <div style="margin-bottom: 10px;">IP Address Binary:</div>
+    <div style="font-family: monospace; background-color: #f8fafd; padding: 15px; border-radius: 5px; color: #333333; border: 1px solid #d0e3f7;">
+        <div style="margin-bottom: 10px; font-weight: 500;">IP Address in Binary:</div>
         <div style="letter-spacing: 2px;">{ip_data['ip_binary']}</div>
     """
     
     if 'netmask_binary' in ip_data:
         html += f"""
-        <div style="margin-bottom: 10px; margin-top: 15px;">Subnet Mask Binary:</div>
+        <div style="margin-bottom: 10px; margin-top: 15px; font-weight: 500;">Subnet Mask in Binary:</div>
         <div style="letter-spacing: 2px;">{ip_data['netmask_binary']}</div>
         
-        <div style="margin-bottom: 10px; margin-top: 15px;">Network/Host Portions:</div>
-        <div style="letter-spacing: 2px;">
-            <span style="color: #4CAF50;">{ip_data['network_part']}</span><span style="color: #FFC107;">{'.' if ip_data['host_part'] else ''}{ip_data['host_part']}</span>
+        <div style="margin-bottom: 10px; margin-top: 15px; font-weight: 500;">Network Bits vs Host Bits:</div>
+        <div style="letter-spacing: 2px; background-color: #ffffff; padding: 8px; border-radius: 3px; border: 1px solid #e0e9f5;">
+        """
+        
+        # Format each bit with appropriate color
+        for i, bit in enumerate(ip_data['ip_binary'].replace('.', '')):
+            if i < ip_data['prefix_len']:
+                html += f"<span style=\"color: #2E7D32;\">{bit}</span>"
+            else:
+                html += f"<span style=\"color: #FFA000;\">{bit}</span>"
+            # Add space every 8 bits for readability
+            if (i+1) % 8 == 0 and i < 31:
+                html += " "
+                
+        html += f"""
         </div>
-        <div style="font-size: 0.8em; margin-top: 5px;">
-            <span style="color: #4CAF50;">■</span> Network Portion ({ip_data['prefix_len']} bits) &nbsp;&nbsp;
-            <span style="color: #FFC107;">■</span> Host Portion ({32 - ip_data['prefix_len']} bits)
+        <div style="font-size: 0.9em; margin-top: 8px;">
+            <span style="color: #2E7D32;">■</span> Network Portion ({ip_data['prefix_len']} bits) &nbsp;&nbsp;
+            <span style="color: #FFA000;">■</span> Host Portion ({32 - ip_data['prefix_len']} bits)
         </div>
-    """
+        """
     
     html += "</div>"
     return html
 
-# Custom CSS with network-themed styling
+# Initialize the SubnetCalculator
+subnet_calc = SubnetCalculator()
+
+# Custom CSS for improved UI
 st.markdown("""
 <style>
     .main .block-container {
-        padding-top: 1.5rem;
+        padding-top: 1rem;
         max-width: 1200px;
     }
+    body {
+        color: #333333;
+        background-color: #fafafa;
+    }
     h1, h2, h3 {
-        color: #004D99;
-        font-family: 'Roboto', sans-serif;
+        color: #2E7EAF;
+        font-family: 'Helvetica Neue', Arial, sans-serif;
     }
     h1 {
-        font-size: 2.8rem !important;
-        font-weight: 700 !important;
+        font-size: 2.2rem !important;
+        font-weight: 600 !important;
         margin-bottom: 0.5rem !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
     h2 {
-        font-size: 1.8rem !important;
-        font-weight: 600 !important;
+        font-size: 1.5rem !important;
+        font-weight: 500 !important;
         margin-top: 1rem !important;
     }
+    h3 {
+        font-size: 1.2rem !important;
+        font-weight: 500 !important;
+    }
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0px;
-        background-color: #f0f0f5;
-        border-radius: 10px 10px 0 0;
-        padding: 0 10px;
+        gap: 2px;
+        background-color: #f5f7fa;
+        border-radius: 8px 8px 0 0;
+        padding: 5px 10px 0 10px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 60px;
-        white-space: pre-wrap;
-        background-color: #f0f0f5;
-        border-radius: 10px 10px 0 0;
-        gap: 1px;
+        height: 50px;
+        background-color: #f5f7fa;
+        border-radius: 8px 8px 0 0;
         padding: 10px 20px;
-        font-weight: 500;
+        font-weight: 400;
         font-size: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         transition: all 0.2s ease;
-        border-bottom: 4px solid transparent;
+        border-bottom: 3px solid transparent;
     }
     .stTabs [aria-selected="true"] {
         background-color: #ffffff;
-        color: #004D99;
-        font-weight: 600;
-        border-bottom: 4px solid #004D99;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        background-color: rgba(255,255,255,0.7);
-        color: #004D99;
+        color: #2E7EAF;
+        font-weight: 500;
+        border-bottom: 3px solid #2E7EAF;
     }
     .stTabs [data-baseweb="tab-panel"] {
         background-color: white;
-        border-radius: 0 0 10px 10px;
+        border-radius: 0 0 8px 8px;
         padding: 20px;
-        border: 1px solid #e6e6ef;
+        border: 1px solid #e6e9f0;
         border-top: none;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
     .info-box {
-        background-color: #f0f7ff;
-        border-left: 5px solid #004D99;
+        background-color: #f4f9ff;
+        border-left: 4px solid #2E7EAF;
         padding: 15px;
         margin-bottom: 20px;
-        border-radius: 0 4px 4px 0;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-radius: 4px;
     }
     .result-box {
-        background-color: #f8fcff;
-        border: 1px solid #a3d2ff;
+        background-color: #ffffff;
+        border: 1px solid #e0e9f5;
         border-radius: 8px;
         padding: 20px;
         margin-top: 20px;
-        box-shadow: 0 4px 10px rgba(0,77,153,0.08);
-    }
-    .tech-card {
-        background-color: #0D1117;
-        color: #e6e6e6;
-        border-radius: 8px;
-        padding: 15px;
-        font-family: 'Courier New', monospace;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        position: relative;
-        overflow: hidden;
-    }
-    .tech-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 4px;
-        background: linear-gradient(to right, #004D99, #00C5FF);
     }
     .stButton>button {
-        background-color: #004D99;
+        background-color: #2E7EAF;
         color: white;
-        border-radius: 5px;
+        border-radius: 6px;
         border: none;
         padding: 8px 16px;
         font-weight: 500;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        transition: all 0.2s ease;
-    }
-    .stButton>button:hover {
-        background-color: #0062CC;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        transform: translateY(-1px);
     }
     .status-badge {
         display: inline-block;
-        padding: 4px 8px;
+        padding: 3px 8px;
         border-radius: 12px;
-        font-size: 12px;
-        font-weight: bold;
+        font-size: 11px;
+        font-weight: 500;
         text-transform: uppercase;
         margin-right: 5px;
     }
     .badge-success {
-        background-color: #D6F5D6;
-        color: #107C10;
-        border: 1px solid #71BA71;
+        background-color: #E8F5E9;
+        color: #2E7D32;
+        border: 1px solid #A5D6A7;
     }
     .badge-info {
-        background-color: #E5F2FF;
-        color: #0078D4;
-        border: 1px solid #A9D4FF;
+        background-color: #E1F5FE;
+        color: #0288D1;
+        border: 1px solid #B3E5FC;
     }
-    .badge-warning {
-        background-color: #FFF4CE;
-        color: #9D5D00;
-        border: 1px solid #FFDC88;
-    }
-    /* Custom styling for network visualization */
-    .network-diagram {
-        border: 1px solid #dddddd;
-        border-radius: 8px;
-        padding: 10px;
-        background-color: #fafafa;
-        box-shadow: inset 0 0 5px rgba(0,0,0,0.05);
-    }
-    /* Code-style inputs */
-    .code-input {
-        font-family: 'Courier New', monospace;
-        background-color: #f5f8fa;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-    }
-    /* IP address segments styling */
     .ip-segment {
         display: inline-block;
-        background-color: #e9f5ff;
-        border: 1px solid #cce5ff;
+        background-color: #f0f7ff;
+        border: 1px solid #d0e3f7;
         padding: 2px 6px;
         margin: 0 2px;
         border-radius: 4px;
-        font-family: 'Courier New', monospace;
-        font-weight: bold;
+        font-family: monospace;
+        font-weight: 500;
     }
-    /* Layout improvements */
-    .stSelectbox, .stNumberInput {
-        padding-bottom: 10px !important;
+    .section-header {
+        font-size: 1.2rem;
+        color: #2E7EAF;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #eaeff5;
     }
-    /* Data table styling */
-    .dataframe tbody tr:nth-child(even) {
-        background-color: #f8f9fa;
-    }
-    .dataframe thead th {
-        background-color: #004D99;
-        color: white;
-        font-weight: 600;
-    }
-    /* Remove top menu and footer */
-    header, footer {
-        visibility: hidden;
-    }
-    /* Floating header caption that looks like a terminal */
-    .terminal-header {
-        background-color: #1E1E1E;
-        color: #00FF00;
-        font-family: 'Courier New', monospace;
-        padding: 6px 15px;
-        border-radius: 8px 8px 0 0;
-        font-size: 0.8rem;
-        letter-spacing: 0.5px;
+    .divider {
+        height: 1px;
+        background-color: #eaeff5;
+        margin: 20px 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Preload terminal-style animation text
-def terminal_text(text, key=None):
-    placeholder = st.empty()
-    full_text = ""
-    
-    # Use a placeholder to render the terminal-style text
-    terminal_html = f"""
-    <div class="tech-card">
-        <span style="color:#A2FF5D;">root@network</span>:<span style="color:#5DA4FF;">/subnet-calculator</span>$ {full_text}<span class="blinking">|</span>
-    </div>
-    """
-    placeholder.markdown(terminal_html, unsafe_allow_html=True)
-    
-    # Uncomment for production to enable animation
-    # for char in text:
-    #     full_text += char
-    #     terminal_html = f"""
-    #     <div class="tech-card">
-    #         <span style="color:#A2FF5D;">root@network</span>:<span style="color:#5DA4FF;">/subnet-calculator</span>$ {full_text}<span class="blinking">|</span>
-    #     </div>
-    #     """
-    #     placeholder.markdown(terminal_html, unsafe_allow_html=True)
-    #     time.sleep(0.02)
-    
-    # Final text without cursor
-    terminal_html = f"""
-    <div class="tech-card">
-        <span style="color:#A2FF5D;">root@network</span>:<span style="color:#5DA4FF;">/subnet-calculator</span>$ {text}
-    </div>
-    """
-    placeholder.markdown(terminal_html, unsafe_allow_html=True)
-    return placeholder
+# App title and introduction
+st.title("🌐 IP Subnet Calculator")
 
-# Initialize the SubnetCalculator
-subnet_calc = SubnetCalculator()
-
-# App header with simulated terminal effect
-st.markdown('<div class="terminal-header">NETWORK OPERATIONS CENTER v2.5</div>', unsafe_allow_html=True)
-
-# App title and description with animated terminal effect
-st.title("🌐 IP Subnet Calculator Pro")
-terminal_text("ifconfig | grep subnet_tool | status")
-
-st.markdown(
-    """
-    <div class="info-box">
-    <h3>Advanced Network Engineering Tool</h3>
-    A professional-grade subnet calculator designed for network engineers, CCNA/CCNP professionals, and IT infrastructure teams.
-    Features binary visualization, subnet mapping, and technical analytics for enterprise network planning.
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
-
-# Status indicators
-st.markdown(
-    """
-    <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-        <div><span class="status-badge badge-success">ONLINE</span> Calculator Engine</div>
-        <div><span class="status-badge badge-info">v2.5.4</span> IP Protocol Handler</div>
-        <div><span class="status-badge badge-info">READY</span> Binary Analyzer</div>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="info-box">
+<h3>Network Planning Tool</h3>
+A tool for IP subnetting and network planning. Perfect for students, IT professionals, and network administrators.
+<br><br>
+<b>This tool helps you:</b>
+<ul>
+    <li>Calculate network information from an IP address</li>
+    <li>Divide networks into smaller subnets</li>
+    <li>Find the right subnet size for your needs</li>
+    <li>Visualize networks and understand binary representations</li>
+</ul>
+</div>
+""", unsafe_allow_html=True)
 
 # Create tabs for different functions
-tab1, tab2, tab3, tab4 = st.tabs(["Network Info", "Subnet Division", "Host Count", "Supernet"])
+tab1, tab2, tab3, tab4 = st.tabs(["Network Info", "Subnet Division", "Host Count", "Subnet Size"])
 
 # Tab 1: Network Information
 with tab1:
-    st.header("Network Analysis & Binary Visualization")
-    
-    # Add a styled input box with code-like appearance
-    st.markdown('<div class="terminal-header">ENTER NETWORK PARAMETERS</div>', unsafe_allow_html=True)
+    st.header("Network Information")
     
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        # Add CSS class for code-style input
-        st.markdown("""
-        <style>
-        .ip-input div[data-baseweb="input"] > div {
-            font-family: 'Courier New', monospace;
-            background-color: #f5f8fa;
-            border: 1px solid #ddd;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
         network_input = st.text_input(
-            "Enter IP Network (CIDR notation):",
+            "IP Network with CIDR notation:",
+            value="192.168.1.0/24",
             placeholder="Example: 192.168.1.0/24",
-            key="network_input_styled"
+            help="Enter an IP address followed by a slash and the prefix length (e.g., 192.168.1.0/24)"
         )
     
     with col2:
         st.write("")
         st.write("")
-        calculate_button = st.button("📊 Analyze Network")
+        calculate_button = st.button("Calculate", use_container_width=True)
     
-    # Example networks with quick select
-    if not network_input:
-        st.markdown("<p style='margin-top: -10px; font-size: 0.85rem; color: #666;'><b>Quick Select:</b></p>", unsafe_allow_html=True)
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            if st.button("RFC1918 - Class A", help="Private network range - Class A"):
-                network_input = "10.0.0.0/8"
-                st.session_state.network_input_styled = network_input
-                st.experimental_rerun()
-        with col2:
-            if st.button("RFC1918 - Class B", help="Private network range - Class B"):
-                network_input = "172.16.0.0/12"
-                st.session_state.network_input_styled = network_input
-                st.experimental_rerun()
-        with col3:
-            if st.button("RFC1918 - Class C", help="Private network range - Class C"):
-                network_input = "192.168.0.0/16"
-                st.session_state.network_input_styled = network_input
-                st.experimental_rerun()
-        with col4:
-            if st.button("AWS VPC Default", help="Default AWS VPC CIDR block"):
-                network_input = "10.0.0.0/16"
-                st.session_state.network_input_styled = network_input
-                st.experimental_rerun()
+    # Common network examples
+    st.write("### Common Networks")
+    col1, col2, col3 = st.columns(3)
     
-    if calculate_button and network_input:
+    with col1:
+        if st.button("Home Network", key="home"):
+            network_input = "192.168.1.0/24"
+            st.experimental_rerun()
+        if st.button("Large Enterprise", key="enterprise"):
+            network_input = "10.0.0.0/8"
+            st.experimental_rerun()
+    with col2:
+        if st.button("Office Network", key="office"):
+            network_input = "10.0.0.0/16"
+            st.experimental_rerun()
+        if st.button("Class B Example", key="classb"):
+            network_input = "172.16.0.0/16"
+            st.experimental_rerun()
+    with col3:
+        if st.button("Small Business", key="small"):
+            network_input = "192.168.0.0/22"
+            st.experimental_rerun()
+        if st.button("Localhost", key="localhost"):
+            network_input = "127.0.0.0/8"
+            st.experimental_rerun()
+    
+    # Calculation and display
+    if calculate_button or network_input:
         try:
-            # Add processing effect
-            with st.spinner("Performing binary analysis..."): 
-                # Simulate processing with a small delay
-                time.sleep(0.5)
-                
+            with st.spinner("Calculating network information..."):
                 # Get network information
                 result = subnet_calc.get_network_info(network_input)
                 
-                # Parse components for visuals
-                network = ipaddress.IPv4Network(network_input)
-                network_addr = str(network.network_address)
-                subnet_mask = str(network.netmask)
-                
-                # Get binary representations
-                binary_data = get_binary_representation(network_addr, subnet_mask)
-                
-                # Create columns for results
+            if isinstance(result, dict) and 'error' not in result:
                 st.markdown("<div class='result-box'>", unsafe_allow_html=True)
                 
-                # Terminal-style header for result
-                terminal_out = terminal_text(f"show ip subnet {network_input} | detailed")
+                # Handle different key formats - the calculator returns keys with spaces
+                # Map the keys to ensure compatibility
+                key_mappings = {
+                    'network_address': ['network_address', 'Network Address', 'Network'],
+                    'broadcast_address': ['broadcast_address', 'Broadcast Address', 'Broadcast'],
+                    'first_host': ['first_host', 'First Host', 'First Usable Host'],
+                    'last_host': ['last_host', 'Last Host', 'Last Usable Host'],
+                    'subnet_mask': ['subnet_mask', 'Subnet Mask', 'Netmask'],
+                    'prefix_length': ['prefix_length', 'Prefix Length', 'Prefix'],
+                    'num_hosts': ['num_hosts', 'Number of Hosts', 'Hosts']
+                }
                 
-                # Create tabs for different views
-                res_tab1, res_tab2, res_tab3 = st.tabs(["📋 Basic Info", "🔢 Binary View", "📊 Network Map"])
+                # Function to get value using various possible keys
+                def get_value(result_dict, possible_keys):
+                    for key in possible_keys:
+                        if key in result_dict:
+                            return result_dict[key]
+                    return "N/A"
                 
-                with res_tab1:
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("<h3 style='color:#004D99; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px;'>Network Parameters</h3>", unsafe_allow_html=True)
-                        
-                        # Format the IP segments with styling
-                        net_addr_parts = result['network_address'].split('.')
-                        broadcast_parts = result['broadcast_address'].split('.')
-                        subnet_parts = result['subnet_mask'].split('.')
-                        
-                        net_addr_html = '.'.join([f"<span class='ip-segment'>{p}</span>" for p in net_addr_parts])
-                        broadcast_html = '.'.join([f"<span class='ip-segment'>{p}</span>" for p in broadcast_parts])
-                        subnet_html = '.'.join([f"<span class='ip-segment'>{p}</span>" for p in subnet_parts])
-                        
-                        st.markdown(f"<p><b>Network Address:</b> {net_addr_html}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Broadcast Address:</b> {broadcast_html}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Subnet Mask:</b> {subnet_html}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>CIDR Notation:</b> {result['cidr_notation']}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Wildcard Mask:</b> {result.get('wildcard_mask', '255.255.255.255')}</p>", unsafe_allow_html=True)
-                    
-                    with col2:
-                        st.markdown("<h3 style='color:#004D99; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 8px;'>Capacity Analysis</h3>", unsafe_allow_html=True)
-                        
-                        # Add a network class badge with appropriate color
-                        class_color = "badge-info"
-                        if result['network_class'] == 'A':
-                            class_color = "badge-success"
-                        elif result['network_class'] == 'C':
-                            class_color = "badge-warning"
-                            
-                        st.markdown(f"<p><b>Network Class:</b> <span class='status-badge {class_color}'>{result['network_class']}</span></p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Total Hosts:</b> {result['num_hosts']:,}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Usable Hosts:</b> {int(result['num_hosts']) - 2:,}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>First Usable Host:</b> {result['first_host']}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Last Usable Host:</b> {result['last_host']}</p>", unsafe_allow_html=True)
-                        
-                        # Add utilization percentage visualization
-                        if network.prefixlen < 31:
-                            usable_percent = 100 * (int(result['num_hosts']) - 2) / (2**(32-network.prefixlen))
-                            st.markdown(f"<p><b>Utilization Efficiency:</b> {usable_percent:.2f}%</p>", unsafe_allow_html=True)
-                            st.progress(usable_percent/100)
+                # Display key network information in columns
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("<div class='section-header'>Network Details</div>", unsafe_allow_html=True)
+                    network_addr = get_value(result, key_mappings['network_address'])
+                    st.markdown(f"**Network Address:** {network_addr}")
+                    st.markdown(f"**Broadcast Address:** {get_value(result, key_mappings['broadcast_address'])}")
+                    st.markdown(f"**First Usable Host:** {get_value(result, key_mappings['first_host'])}")
+                    st.markdown(f"**Last Usable Host:** {get_value(result, key_mappings['last_host'])}")
+                with col2:
+                    st.markdown("<div class='section-header'>Subnet Information</div>", unsafe_allow_html=True)
+                    st.markdown(f"**Subnet Mask:** {get_value(result, key_mappings['subnet_mask'])}")
+                    st.markdown(f"**Prefix Length:** {get_value(result, key_mappings['prefix_length'])}")
+                    st.markdown(f"**Number of Hosts:** {get_value(result, key_mappings['num_hosts'])}")
+                    st.markdown(f"**CIDR Notation:** {network_input}")
                 
-                with res_tab2:
-                    st.markdown("<h3 style='color:#004D99; margin-bottom: 10px;'>Binary Representation Analysis</h3>", unsafe_allow_html=True)
-                    
-                    # Create binary visualization
-                    binary_html = create_binary_visualization(binary_data)
-                    st.markdown(binary_html, unsafe_allow_html=True)
-                    
-                    # Add more binary details
-                    st.markdown("<h4 style='margin-top: 20px; color:#004D99;'>Subnet Mask Analysis</h4>", unsafe_allow_html=True)
-                    
-                    prefix_len = network.prefixlen
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Calculate leftover bits
-                        leftover_bits = 32 - prefix_len
-                        st.markdown(f"<p><b>Network Bits:</b> {prefix_len}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Host Bits:</b> {leftover_bits}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Max Subnets:</b> {2**prefix_len:,}</p>", unsafe_allow_html=True)
-                                                
-                    with col2:
-                        st.markdown(f"<p><b>Max Hosts:</b> {2**leftover_bits:,}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Usable Hosts:</b> {max(0, 2**leftover_bits - 2):,}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<p><b>Address Space:</b> {network.num_addresses / (2**32) * 100:.6f}% of IPv4</p>", unsafe_allow_html=True)
-                    
-                    # Add hexadecimal representation
-                    st.markdown("<h4 style='margin-top: 20px; color:#004D99;'>Hexadecimal Representation</h4>", unsafe_allow_html=True)
-                    
-                    # Convert to hex
-                    net_addr_int = int(network.network_address)
-                    mask_int = int(network.netmask)
-                    bcast_int = int(network.broadcast_address)
-                    
-                    hex_addr = format(net_addr_int, '08X')
-                    hex_mask = format(mask_int, '08X')
-                    hex_bcast = format(bcast_int, '08X')
-                    
-                    st.markdown(f"<div class='tech-card' style='margin-top: 10px;'>", unsafe_allow_html=True)
-                    st.markdown(f"<p><b>Network (HEX):</b> 0x{hex_addr}</p>", unsafe_allow_html=True)
-                    st.markdown(f"<p><b>Netmask (HEX):</b> 0x{hex_mask}</p>", unsafe_allow_html=True)
-                    st.markdown(f"<p><b>Broadcast (HEX):</b> 0x{hex_bcast}</p>", unsafe_allow_html=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                
-                with res_tab3:
-                    st.markdown("<h3 style='color:#004D99; margin-bottom: 10px;'>Network Map</h3>", unsafe_allow_html=True)
-                    
-                    # Create network visualization
+                # Network visualization
+                st.markdown("<div class='section-header'>Network Visualization</div>", unsafe_allow_html=True)
+                try:
                     network_img = create_subnet_visualization(network_input)
                     if network_img:
-                        st.markdown("<div class='network-diagram'>", unsafe_allow_html=True)
                         st.image(network_img, use_column_width=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    
-                    # Add technical context based on network size
-                    if network.prefixlen < 8:
-                        st.info("⚠️ This is a very large network block. Consider proper hierarchical design for subnetting.")
-                    elif network.prefixlen < 16:
-                        st.info("ℹ️ This is a Class A sized block, suitable for large enterprise deployments.")
-                    elif network.prefixlen < 24:
-                        st.success("✅ This is a medium-sized network block, good for campus or department-level networks.")
                     else:
-                        st.success("✅ This is a smaller network block, appropriate for LANs or smaller segments.")
+                        st.info("Network visualization could not be generated.")
+                except Exception as vis_error:
+                    st.warning(f"Network visualization error: {str(vis_error)}")
+                
+                # Binary representation
+                st.markdown("<div class='section-header'>Binary Representation</div>", unsafe_allow_html=True)
+                try:
+                    # Get network address and subnet mask using key mapping
+                    network_addr = get_value(result, key_mappings['network_address'])
+                    subnet_mask = get_value(result, key_mappings['subnet_mask'])
+                    
+                    # Handle potential CIDR notation in network address
+                    if '/' in network_addr:
+                        network_addr = network_addr.split('/')[0]
+                    
+                    # Get binary representation
+                    binary_data = get_binary_representation(network_addr, subnet_mask)
+                    
+                    # Display IP segments
+                    ip_parts = network_addr.split('.')
+                    st.markdown(
+                        f"<div style='margin-bottom: 10px;'>IP Address: "
+                        f"<span class='ip-segment'>{ip_parts[0]}</span>."
+                        f"<span class='ip-segment'>{ip_parts[1]}</span>."
+                        f"<span class='ip-segment'>{ip_parts[2]}</span>."
+                        f"<span class='ip-segment'>{ip_parts[3]}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+                    
+                    # Display binary visualization
+                    binary_html = create_binary_visualization(binary_data)
+                    if binary_html:
+                        st.markdown(binary_html, unsafe_allow_html=True)
+                    else:
+                        st.info("Binary visualization could not be generated.")
+                    
+                    # Explanation
+                    with st.expander("Understanding Network & Host Portions"):
+                        st.markdown("""
+                        **Binary Representation Explained:**
+                        
+                        * **Green bits:** Network portion - fixed for all hosts in this network
+                        * **Yellow bits:** Host portion - can vary to create different host addresses
+                        
+                        The subnet mask determines how many bits are used for the network vs. host portions. 
+                        A longer prefix (higher CIDR number) means more bits are used for the network portion,
+                        resulting in more subnets but fewer hosts per subnet.
+                        """)
+                except Exception as bin_error:
+                    st.warning(f"Binary representation error: {str(bin_error)}")
                 
                 st.markdown("</div>", unsafe_allow_html=True)
-                
-                # Technical insights section
-                st.markdown("<h3>Technical Insights</h3>", unsafe_allow_html=True)
-                
-                # Generate relevant technical insights based on the network
-                insights = []
-                if network.prefixlen < 24:
-                    insights.append("This network can be further subnetted for better address utilization.")
-                if network.prefixlen > 28:
-                    insights.append("Limited host capacity - suitable for point-to-point links or small VLANs.")
-                if network.is_private:
-                    insights.append(f"This is a private network (RFC1918 compliant) - no internet routability without NAT.")
-                if network.prefixlen == 24 and str(network.network_address).startswith("192.168"):
-                    insights.append("Standard Class C private subnet - commonly used for home/small office networks.")
-                
-                # Default insight if none apply
-                if not insights:
-                    insights.append("Network configuration appears standard. Consider VLSM for optimal address utilization.")
-                
-                # Display insights in a professional format
-                for i, insight in enumerate(insights, 1):
-                    st.markdown(f"<p>🔹 <b>Insight {i}:</b> {insight}</p>", unsafe_allow_html=True)
-                
+            else:
+                st.error(f"Error: {result.get('error', 'Invalid input')}")
+                st.info("Please enter a valid IP address in CIDR notation (e.g., 192.168.1.0/24)")
         except Exception as e:
-            st.error(f"Error: {str(e)}")
-    
-    st.markdown("""
-    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 30px; border-left: 4px solid #004D99;">    
-    <h3 style="margin-top: 0;">Network Engineer's Guide</h3>
-    <p><b>Usage Instructions:</b></p>
-    <ol>
-        <li>Enter an IP network with CIDR notation (e.g., <code>192.168.1.0/24</code>)</li>
-        <li>Click "Analyze Network" to process</li>
-        <li>Review the detailed analysis across multiple technical dimensions</li>
-        <li>Use the "Binary View" tab to see bit-level technical details</li>
-        <li>Examine the "Network Map" for visual representation</li>
-    </ol>
-    </div>
-    """, unsafe_allow_html=True)
+            st.error(f"An error occurred: {str(e)}")
+            st.info("Please check your input format and try again.")
 
 # Tab 2: Subnet Division
 with tab2:
     st.header("Divide Network into Subnets")
     
-    col1, col2, col3 = st.columns([3, 2, 1])
+    col1, col2 = st.columns([3, 1])
     
     with col1:
-        subnet_network = st.text_input(
-            "Enter IP Network to divide:",
-            placeholder="Example: 192.168.1.0/24",
-            key="subnet_network"
+        parent_network = st.text_input(
+            "Parent Network:",
+            value="192.168.1.0/24",
+            key="parent_network",
+            help="The network to divide into subnets"
         )
     
-    with col2:
+    col1, col2 = st.columns(2)
+    with col1:
         division_method = st.radio(
-            "Division method:",
-            options=["By Number of Subnets", "By New Prefix Length"],
-            horizontal=True
+            "Division Method:",
+            ["By Number of Subnets", "By Hosts per Subnet"]
         )
     
-    with col3:
-        if division_method == "By Number of Subnets":
-            subnet_count = st.number_input("Number of subnets:", min_value=2, value=4, step=1)
-            division_value = subnet_count
-        else:
-            new_prefix = st.number_input("New prefix length:", min_value=0, max_value=32, value=26, step=1)
-            division_value = new_prefix
-    
-    subnet_button = st.button("Calculate Subnets")
-    
-    if subnet_button and subnet_network:
-        try:
-            if division_method == "By Number of Subnets":
-                result = subnet_calc.subnet_network(subnet_network, subnet_count=division_value)
-            else:
-                result = subnet_calc.subnet_network(subnet_network, new_prefix=division_value)
-            
-            st.markdown("<div class='result-box'>", unsafe_allow_html=True)
-            st.subheader(f"Subnet Division Result ({len(result)} subnets)")
-            
-            # Create a table for the results
-            subnet_data = []
-            for i, subnet_info in enumerate(result, 1):
-                subnet_data.append({
-                    "Subnet #": i,
-                    "Network Address": subnet_info["network_address"],
-                    "Broadcast": subnet_info["broadcast_address"],
-                    "First Host": subnet_info["first_host"],
-                    "Last Host": subnet_info["last_host"],
-                    "# Hosts": subnet_info["num_hosts"]
-                })
-            
-            st.dataframe(subnet_data, use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-    
-    st.markdown("""
-    ### How to use:
-    1. Enter the network to divide (e.g., 192.168.1.0/24)
-    2. Choose division method: by number of subnets or by new prefix length
-    3. Specify either the number of subnets or the new prefix length
-    4. Click "Calculate Subnets" to view the resulting subnet division
-    """)
+    if division_method == "By Number of Subnets":
+        num_subnets = st.number_input(
+            "Number of Subnets:",
+            min_value=2,
+            max_value=1024,
+            value=4,
+            help="How many subnets do you need?"
+        )
+        
+        if st.button("Divide Network", key="divide_by_subnets"):
+            try:
+                with st.spinner("Calculating subnets..."):
+                    time.sleep(0.2)  # Brief delay for better UX
+                    result = subnet_calc.divide_network_by_subnets(parent_network, num_subnets)
+                
+                if 'error' not in result:
+                    st.success(f"Successfully divided {parent_network} into {len(result)} subnets")
+                    
+                    # Create a DataFrame for better display
+                    subnet_data = []
+                    for subnet in result:
+                        subnet_data.append({
+                            "Network": subnet['network_address'],
+                            "Mask": subnet['subnet_mask'],
+                            "Hosts": subnet['num_hosts'],
+                            "First Host": subnet['first_host'],
+                            "Last Host": subnet['last_host']
+                        })
+                    
+                    st.dataframe(pd.DataFrame(subnet_data))
+                    
+                    # Visualization
+                    st.subheader("Subnet Visualization")
+                    try:
+                        # Create visualization with parent network and all subnets
+                        subnet_img = create_subnet_visualization(parent_network, result)
+                        if subnet_img:
+                            st.image(subnet_img, use_column_width=True)
+                    except Exception as vis_err:
+                        st.warning(f"Could not generate subnet visualization: {str(vis_err)}")
+                else:
+                    st.error(f"Error: {result['error']}")
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
+    else:
+        hosts_per_subnet = st.number_input(
+            "Hosts per Subnet:",
+            min_value=2,
+            max_value=16777214,
+            value=62,
+            help="How many host addresses do you need in each subnet?"
+        )
+        
+        if st.button("Divide Network", key="divide_by_hosts"):
+            try:
+                with st.spinner("Calculating subnets..."):
+                    time.sleep(0.2)  # Brief delay for better UX
+                    result = subnet_calc.divide_network_by_hosts(parent_network, hosts_per_subnet)
+                
+                if 'error' not in result:
+                    st.success(f"Successfully created subnets with at least {hosts_per_subnet} hosts each")
+                    
+                    # Create a DataFrame for better display
+                    subnet_data = []
+                    for subnet in result:
+                        subnet_data.append({
+                            "Network": subnet['network_address'],
+                            "Mask": subnet['subnet_mask'],
+                            "Hosts": subnet['num_hosts'],
+                            "First Host": subnet['first_host'],
+                            "Last Host": subnet['last_host']
+                        })
+                    
+                    st.dataframe(pd.DataFrame(subnet_data))
+                    
+                    # Add practical advice
+                    st.info(f"""
+                    **Network Planning Tip:** 
+                    These subnets each support {hosts_per_subnet} hosts. Remember to account for growth by choosing a subnet that allows for additional hosts in the future.
+                    """)
+                else:
+                    st.error(f"Error: {result['error']}")
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
 
-# Tab 3: Find Subnet for Host Count
+# Tab 3: Host Count
 with tab3:
-    st.header("Find Subnet for Host Count")
+    st.header("Find Network Size by Host Count")
     
-    col1, col2, col3 = st.columns([2, 2, 1])
+    st.write("Determine the right network size based on the number of hosts you need.")
     
-    with col1:
-        host_count = st.number_input(
-            "Number of hosts needed:",
-            min_value=1,
-            value=100,
-            step=1
-        )
-    
-    with col2:
-        base_network = st.text_input(
-            "Base network (optional):",
-            placeholder="Example: 192.168.0.0/16",
-            key="base_network"
-        )
-    
-    with col3:
-        st.write("")
-        st.write("")
-        host_button = st.button("Find Subnet")
-    
-    if host_button:
-        try:
-            if base_network:
-                result = subnet_calc.find_subnet_for_hosts(host_count, base_network)
-            else:
-                result = subnet_calc.find_subnet_for_hosts(host_count)
-            
-            st.markdown("<div class='result-box'>", unsafe_allow_html=True)
-            st.subheader("Subnet for Host Count")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"**Required Host Count:** {host_count}")
-                st.markdown(f"**CIDR Prefix Length:** /{result['prefix_length']}")
-                st.markdown(f"**Subnet Mask:** {result['subnet_mask']}")
-            
-            with col2:
-                st.markdown(f"**Actual Available Hosts:** {result['available_hosts']}")
-                if 'network_address' in result:
-                    st.markdown(f"**Network Address:** {result['network_address']}")
-                    st.markdown(f"**Broadcast Address:** {result['broadcast_address']}")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-    
-    st.markdown("""
-    ### How to use:
-    1. Enter the number of hosts you need in your subnet
-    2. Optionally specify a base network to work within
-    3. Click "Find Subnet" to determine the appropriate subnet size
-    4. The calculator will show the subnet mask and available host count
-    """)
-
-# Tab 4: Supernet Calculation
-with tab4:
-    st.header("Calculate Supernet")
-    
-    networks_input = st.text_area(
-        "Enter networks (one per line):",
-        placeholder="Example:\n192.168.1.0/24\n192.168.2.0/24\n192.168.3.0/24",
-        height=150
+    num_hosts = st.number_input(
+        "Number of Hosts Needed:",
+        min_value=1,
+        max_value=16777214,
+        value=25,
+        help="How many host IP addresses do you need in your network?"
     )
     
-    supernet_button = st.button("Calculate Supernet")
-    
-    if supernet_button and networks_input:
+    if st.button("Calculate Network Size", key="calc_network_size"):
         try:
-            networks_list = [line.strip() for line in networks_input.split("\n") if line.strip()]
-            result = subnet_calc.find_supernet(networks_list)
+            with st.spinner("Calculating appropriate network size..."):
+                time.sleep(0.2)  # Brief delay for better UX
+                subnet_size = subnet_calc.get_subnet_for_hosts(num_hosts)
             
-            st.markdown("<div class='result-box'>", unsafe_allow_html=True)
-            st.subheader("Supernet Result")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown(f"**Supernet Network:** {result['supernet']}")
-                st.markdown(f"**CIDR Notation:** {result['cidr_notation']}")
-                st.markdown(f"**Subnet Mask:** {result['subnet_mask']}")
-            
-            with col2:
-                st.markdown(f"**Number of Addresses:** {result['num_addresses']}")
-                st.markdown(f"**Networks Included:** {len(networks_list)}")
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-            
+            if 'error' not in subnet_size:
+                st.success(f"To accommodate {num_hosts} hosts, you need a /{subnet_size['prefix_length']} network")
+                
+                st.markdown("<div class='result-box'>", unsafe_allow_html=True)
+                # Display detailed information
+                st.markdown("<div class='section-header'>Network Details</div>", unsafe_allow_html=True)
+                st.markdown(f"**Recommended Prefix Length:** /{subnet_size['prefix_length']}")
+                st.markdown(f"**Subnet Mask:** {subnet_size['subnet_mask']}")
+                st.markdown(f"**Total Available Hosts:** {subnet_size['num_hosts']}")
+                st.markdown(f"**Utilization with {num_hosts} hosts:** {round((num_hosts / subnet_size['num_hosts']) * 100, 2)}%")
+                
+                # Example implementation
+                st.markdown("<div class='section-header'>Example Implementation</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                If you're using private IP space, you could implement this as:
+                * **Class C:** 192.168.1.0/{subnet_size['prefix_length']}
+                * **Class B:** 172.16.0.0/{subnet_size['prefix_length']}
+                * **Class A:** 10.0.0.0/{subnet_size['prefix_length']}
+                """)
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                st.error(f"Error: {subnet_size['error']}")
         except Exception as e:
-            st.error(f"Error: {str(e)}")
+            st.error(f"An error occurred: {str(e)}")
+
+# Tab 4: Subnet Size Calculator
+with tab4:
+    st.header("Subnet Size Calculator")
     
-    st.markdown("""
-    ### How to use:
-    1. Enter multiple networks (one per line)
-    2. Click "Calculate Supernet"
-    3. View the smallest supernet that contains all the given networks
-    4. This is useful for route summarization and efficient routing tables
-    """)
-
-# Add footer with app information
+    st.write("Calculate detailed information about different subnet sizes.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        prefix_length = st.slider(
+            "Prefix Length (CIDR):",
+            min_value=0,
+            max_value=32,
+            value=24,
+            help="Select a prefix length (0-32)"
+        )
+    
+    with col2:
+        st.write("")
+        st.write("")
+        st.markdown(f"**Selected Prefix:** /{prefix_length}")
+    
+    # Calculate and display information
+    if st.button("Show Subnet Details", key="show_subnet_details") or True:
+        try:
+            # Get subnet information
+            subnet_info = subnet_calc.get_prefix_info(prefix_length)
+            
+            if 'error' not in subnet_info:
+                st.markdown("<div class='result-box'>", unsafe_allow_html=True)
+                
+                # Basic information
+                st.markdown("<div class='section-header'>Subnet Details</div>", unsafe_allow_html=True)
+                st.markdown(f"**Subnet Mask:** {subnet_info['subnet_mask']}")
+                st.markdown(f"**Wildcard Mask:** {subnet_info['wildcard_mask']}")
+                st.markdown(f"**Number of Hosts:** {subnet_info['num_hosts']:,}")
+                st.markdown(f"**Number of Networks:** {subnet_info['num_networks']:,}")
+                
+                # Binary representation of the mask
+                st.markdown("<div class='section-header'>Binary Representation</div>", unsafe_allow_html=True)
+                binary_mask = bin(int(ipaddress.IPv4Address(subnet_info['subnet_mask'])))[2:].zfill(32)
+                binary_mask_formatted = '.'.join([binary_mask[i:i+8] for i in range(0, 32, 8)])
+                
+                st.markdown(f"""
+                **Binary Subnet Mask:** 
+                <div style="font-family: monospace; background-color: #f8fafd; padding: 10px; border-radius: 4px; margin-top: 5px;">
+                {binary_mask_formatted}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Usage examples
+                st.markdown("<div class='section-header'>Usage Examples</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                * **Class A Private Network:** 10.0.0.0/{prefix_length}
+                * **Class B Private Network:** 172.16.0.0/{prefix_length}
+                * **Class C Private Network:** 192.168.1.0/{prefix_length}
+                """)
+                
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                st.error(f"Error: {subnet_info['error']}")
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            
+# Footer with helpful tips
 st.markdown("""
----
-### About this App
-
-This IP Subnet Calculator is built using Python with Streamlit. It provides a comprehensive set
-of tools for network engineers, IT professionals, and students learning about IP networking.
-
-**Features:**
-- Calculate network information for any CIDR notation
-- Divide networks into equal-sized subnets
-- Find appropriate subnet size for specific host counts
-- Calculate supernets (summarized routes)
-
-[View Source Code on GitHub](https://github.com/Samirrahman71/P-Subnetting-Practice-Tool)
-""")
+<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eaeff5; text-align: center; color: #6c757d; font-size: 0.9rem;">
+IP Subnet Calculator - A helpful tool for network engineers and IT professionals
+</div>
+""", unsafe_allow_html=True)
