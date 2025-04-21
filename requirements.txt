@@ -1,0 +1,6 @@
+ipaddress>=1.0.23
+pandas>=1.0.0
+matplotlib>=3.0.0
+numpy>=1.18.0
+ipywidgets>=7.5.0
+notebook>=6.0.0
